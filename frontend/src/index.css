@@ -1,0 +1,86 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------- tokens
+   Satu-satunya sumber warna. Komponen memakai utilitas Tailwind yang diturunkan
+   dari nama token di sini (bg-surface, text-ink, border-line, ...), tidak
+   pernah menulis nilai warna mentah di dalam JSX.
+   ---------------------------------------------------------------- */
+@theme {
+  --color-paper: oklch(97.5% 0.006 95);
+  --color-surface: oklch(100% 0 0);
+  --color-surface-sunken: oklch(94.5% 0.006 95);
+  --color-line: oklch(89% 0.008 95);
+  --color-line-strong: oklch(78% 0.01 95);
+  --color-ink: oklch(24% 0.015 260);
+  --color-ink-muted: oklch(50% 0.012 260);
+  --color-ink-faint: oklch(64% 0.01 260);
+
+  --color-accent: oklch(48% 0.16 265);
+  --color-accent-hover: oklch(42% 0.16 265);
+  --color-accent-soft: oklch(95% 0.03 265);
+  --color-on-accent: oklch(100% 0 0);
+
+  /* Status absensi — dipakai juga untuk badge tabel dan grafik. */
+  --color-hadir: oklch(52% 0.14 155);
+  --color-hadir-soft: oklch(95% 0.04 155);
+  --color-terlambat: oklch(58% 0.15 55);
+  --color-terlambat-soft: oklch(96% 0.05 55);
+  --color-izin: oklch(52% 0.13 235);
+  --color-izin-soft: oklch(95% 0.035 235);
+  --color-sakit: oklch(52% 0.16 330);
+  --color-sakit-soft: oklch(96% 0.035 330);
+  --color-alpa: oklch(45% 0.02 260);
+  --color-alpa-soft: oklch(95% 0.005 260);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur-mid: 220ms;
+}
+
+@layer base {
+  html {
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    overflow-x: clip;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Transisi status: hanya transform & opacity, tidak properti layout. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Cincin fokus: muncul seketika, tidak pernah dianimasikan. */
+@utility fokus {
+  &:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}

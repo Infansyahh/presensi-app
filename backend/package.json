@@ -1,0 +1,22 @@
+{
+  "name": "absensi-wajah-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Backend Sistem Absensi Wajah Sekolah (Express + MySQL, ES Modules)",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0",
+    "mysql2": "^3.11.3"
+  }
+}
