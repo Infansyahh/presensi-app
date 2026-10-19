@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import { testConnection } from './config/database.js';
+import { wajibLogin } from './services/authService.js';
+import authRoutes from './routes/authRoutes.js';
 import pendaftaranRoutes from './routes/pendaftaranRoutes.js';
 import absensiRoutes from './routes/absensiRoutes.js';
 import laporanRoutes from './routes/laporanRoutes.js';
@@ -14,9 +16,12 @@ app.get('/health', async (req, res) => {
   res.json({ status: 'ok', database: (await testConnection()) ? 'terhubung' : 'gagal' });
 });
 
-app.use('/api/pendaftaran', pendaftaranRoutes);
+// /api/absensi sengaja TANPA wajibLogin: kiosk memindai dengan secret perangkat,
+// bukan dengan akun dashboard.
+app.use('/api/auth', authRoutes);
+app.use('/api/pendaftaran', wajibLogin, pendaftaranRoutes);
 app.use('/api/absensi', absensiRoutes);
-app.use('/api/laporan', laporanRoutes);
+app.use('/api/laporan', wajibLogin, laporanRoutes);
 
 app.use((req, res) => res.status(404).json({ message: 'Endpoint tidak ditemukan' }));
 

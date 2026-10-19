@@ -134,10 +134,47 @@ data kelas tidak hanya berupa angka bebas.
 
 ## Cara Menjalankan
 
+### 0. Prasyarat
+
+Node.js 18+ dan MySQL/MariaDB (XAMPP) yang sudah **Start**. Setelah itu satu
+perintah saja cukup:
+
+```bash
+npm run setup    # sekali saja: install dependency backend + frontend
+npm run dev      # menyalakan backend (port 3000) dan frontend (port 5173) bersamaan
+```
+
+Buka `http://localhost:5173`. Output terminal nanti berlabel `[backend]` dan
+`[frontend]` agar mudah dibedakan. `Ctrl+C` menghentikan keduanya.
+
+| Perintah root | Fungsi |
+| --- | --- |
+| `npm run setup` | `npm install` untuk `backend/` lalu `frontend/` |
+| `npm run dev` | Jalankan keduanya sekaligus |
+| `npm run dev:backend` | Hanya backend (`node --watch`) |
+| `npm run dev:frontend` | Hanya frontend (Vite) |
+| `npm run build` | Build produksi frontend ke `frontend/dist` |
+| `npm test` | 10 pemeriksaan service backend |
+
+Kalau lebih suka dua terminal terpisah:
+
+```bash
+cd backend  && npm run dev    # API  : http://localhost:3000
+cd frontend && npm run dev    # app  : http://localhost:5173
+```
+
+> `npm run dev` di folder `absensi-wajah/` gagal dengan `ENOENT package.json` kalau
+> tidak ada `package.json` di root. File itu sudah disertakan.
+
+### Kapan perlu dua proses
+
+Keduanya wajib hidup bersamaan: Vite mem-proxy `/api` ke `localhost:3000`. Kalau
+backend mati, halaman tetap terbuka tetapi semua panel akan menampilkan "Gagal memuat".
+
 ### 1. Database
 
 ```bash
-# lewat XAMPP: start MySQL, lalu
+# lewat XAMPP: Start MySQL, lalu jalankan sekali
 mysql -u root -p < database/schema.sql
 ```
 
@@ -175,13 +212,45 @@ npm test        # 10 pemeriksaan service (faceEncoder, detector, liveness, match
 `src/config/database.js` mengekspor `pool` (untuk transaksi), `query(sql, params)`
 untuk query ber-parameter, dan `testConnection()` untuk mengecek koneksi saat boot.
 
-Tabel `perangkat_absen` harus diisi manual sebelum `/api/absensi/scan` bisa dipakai —
-`secret_key` tidak ada nilai default demi keamanan:
+Tabel `perangkat_absen` harus diisi sebelum `/api/absensi/scan` bisa dipakai —
+`secret_key` sengaja tidak ada nilai default demi keamanan:
 
 ```sql
 INSERT INTO perangkat_absen (nama_perangkat, lokasi, secret_key)
-VALUES ('Kamera Gerbang Utama', 'Pintu depan', 'random-uuid-atau-sha256');
+VALUES ('Kamera Gerbang Utama', 'Pintu depan sekolah', 'rahasia-123');
 ```
+
+Nilai `secret_key` itu harus sama dengan `VITE_PERANGKAT_SECRET` di `frontend/.env`
+supaya perangkat dikenali. Kalau berbeda, `/api/absensi/scan` menjawab `401`.
+
+#### Data awal
+
+Agar aplikasi langsung bisa dicoba, isi minimal ini lewat SQL (belum ada
+endpoint untuk menambah kelas, guardu, dan mapel):
+
+```sql
+INSERT INTO kelas (nama_kelas, tingkat, tahun_ajaran)
+VALUES ('X IPA 1', 10, '2026/2027'), ('X IPA 2', 10, '2026/2027');
+
+INSERT INTO mata_pelajaran (kode_mapel, nama_mapel) VALUES ('MTK', 'Matematika');
+
+INSERT INTO guru (nip, nama, email) VALUES ('198501012010011001', 'Budi Santoso, S.Pd', 'wali@sch.id');
+INSERT INTO wali_kelas (guru_id, kelas_id, tahun_ajaran)
+SELECT g.id, k.id, k.tahun_ajaran FROM guru g, kelas k
+WHERE g.email = 'wali@sch.id' AND k.nama_kelas = 'X IPA 1';
+```
+
+#### Soal status Hadir / Terlambat
+
+Status ditentukan dari jam database (`CURTIME()`), bukan jam browser. Kalau semua
+siswa tercatat `Terlambat`, periksa dulu jam sistem:
+
+```sql
+SELECT NOW(), UTC_TIMESTAMP();   -- selisihnya harus 7 jam untuk WIB
+```
+
+Jam masuk sekolah ada di `src/services/jadwalCalculator.js` sebagai `JAM_MASUK`
+(default `07:00`) dan toleransinya `BATAS_TERLAMBAT_MENIT` (default 15 menit).
 
 ### 3. Frontend (React + Vite + Tailwind)
 
@@ -216,6 +285,86 @@ VITE_PERANGKAT_SECRET=secret-dari-tabel-perangkat_absen
 
 Gambar **tidak pernah** dikirim untuk diproses ML; yang dikirim hanya array 128
 angka. `foto_bukti` bersifat opsional sebagai bukti kehadiran.
+
+#### Pendaftaran terpadu
+
+Satu form di *Pendaftaran Wajah* mengirim data siswa **dan** vektor wajahnya sekaligus
+ke `POST /api/pendaftaran/siswa-wajah`. Backend membungkusnya dalam satu transaksi:
+kalau vektor gagal, siswa juga tidak jadi — jadi tidak mungkin ada siswa tanpa wajah.
+Orang tua dibuat ulang hanya bila nomor WhatsApp-nya belum terdaftar, sehingga anak
+kedua dari orang tua yang sama tidak menduplikasi data.
+
+Syarat: minimal **3** sampel vektor per siswa (frontend menampilkan `3/3`, maksimal 5).
+
+#### Inisialisasi TensorFlow (penting)
+
+face-api **tidak** memanggil `tf.ready()` sendiri. Tanpa itu, model tetap termuat
+(kamera dan status "aktif" terlihat normal) tetapi setiap proses deteksi melempar
+`Backend '...' has not yet been initialized` — dan tanpa penangkap error yang
+menampilkan pesannya, gejalanya hanya "kamera hidup tapi wajah tidak pernah terdeteksi".
+
+`muatModel()` di `faceApi.js` karena itu menjalankan:
+
+```js
+await tf.setBackend('webgl');   // fallback ke 'cpu' bila WebGL tidak tersedia
+await tf.ready();
+```
+
+Error deteksi juga **tidak lagi ditelan** `catch {}`. `useWebcamFace` mengembalikan
+`galatDeteksi` yang tampil sebagai banner merah di atas kamera, plus chip diagnostik
+(backend tfjs, jumlah wajah, skor, durasi inferensi). Kalau deteksi gagal, alasannya
+terlihat di halaman — bukan perlu membuka console.
+
+#### Pengambilan sampel wajah otomatis
+
+Halaman *Pendaftaran Wajah* mengambil sampel tanpa operator menekan apa pun:
+
+| Tahap | Pemicu | Arahan di kamera |
+| --- | --- | --- |
+| Cari | belum ada wajah | "Posisikan wajah di tengah bingkai" |
+| Siap | wajah terdeteksi, belum diam | "Hadap kamera, lalu diam sebentar" |
+| Hitung | wajah diam ≥ 5 frame (~1 detik) | "Tahan posisi ini… 3 → 2 → 1" |
+| Simpan | hitungan selesai | "✓ Sampel n/5 tersimpan" |
+
+Syarat ambil sampel adalah **kestabilan kotak wajah** antar-frame (`geserKotak` —
+pergerakan dinormalkan lebar kotak, ambang `MAKS_GESER = 0.08`), bukan sekadar
+"wajah terdeteksi". Jadi siswa yang sedang geleng tidak memicu sampel.
+
+Tombol **Ambil Manual** tetap ada sebagai jaring pengaman. Ada jeda 1,4 detik
+setiap sampel supaya siswa sempat bergeser posisi, dan untuk sampel ke-4/5 layar
+menampilkan instruksi variasi sudut ("geser sedikit ke kiri", dst.) — vektor yang
+beragam membuat pencocokan lebih akurat.
+
+#### Overlay kamera (canvas)
+
+Kotak wajah digambar di `<canvas>` yang menumpuk di atas video
+(`absolute top-0 left-0 w-full h-full pointer-events-none`). Alurnya:
+
+1. `faceapi.matchDimensions(canvas, displaySize)` menyamakan ukuran canvas dengan
+   ukuran **tampilan** (video di-`scale` + dicerminkan).
+2. `faceapi.resizeResults(detections, displaySize)` memetakan koordinat piksel video
+   asli ke piksel tampilan.
+3. `gambarOverlay()` menggambar bingkai tipis + empat sudut HUD + label skor.
+
+Karena video dicerminkan, koordinat X dibalik sebelum digambar supaya kotak muncul di
+sisi yang sama dengan wajah.
+
+> Warna HUD ada di token `--hud-*` dan sengaja ditulis **hex**, bukan OKLCH:
+> `ctx.strokeStyle` tidak bisa membaca fungsi warna OKLCH dan akan diam-diam memakai
+> warna sebelumnya.
+
+#### Kecepatan pemindaian
+
+| Setelan | Nilai | Alasan |
+| --- | --- | --- |
+| `UKURAN_INPUT` | `224` | Deteksi 2,4× lebih cepat dari 320, cukup untuk kiosk |
+| `SKOR_DETEKSI_MIN` | `0.5` | Wajah lebih mudah ditemukan walau kurang ideal |
+| `SKOR_SIAP_KIRIM` | `0.7` | Backend menolak < 0.7, jadi yang di bawah itu tidak dikirim |
+| `jedaMs` | `200` | Batas frekuensi; lebih cepat bikin tab berat tanpa hasil lebih baik |
+
+Efek: `inputSize` turun ke 224 membuat deteksi ~2,4× lebih cepat dibanding 320, dan
+throttle 200 ms menjaga tab tetap mulus. Kotak yang kurang dari 0,7 tidak dikirim,
+jadi tidak ada request yang pasti ditolak backend.
 
 #### Komponen
 
@@ -285,7 +434,46 @@ Semua prefix `/api`. Respons error selalu `{ "message": "..." }`.
 | GET/POST | `/api/pendaftaran/ortu` | Daftar / tambah orang tua |
 | GET/POST | `/api/pendaftaran/mapel` | Daftar / tambah mata pelajaran |
 | GET | `/api/pendaftaran/kelas` | Daftar kelas + nama wali kelas |
-| POST | `/api/pendaftaran/wajah` | `{ siswa_id, vectors: [[128 float], ...] }` |
+| POST | `/api/auth/login` | Masuk dashboard. Body `{username, password}` → `{token, pengguna}` |
+| GET | `/api/auth/saya` | Validasi token yang tersimpan di browser |
+
+### Keamanan: mana yang perlu login
+
+| Endpoint | Akses |
+| --- | --- |
+| `/api/auth/*` | Login terbuka; `/saya` butuh token |
+| `/api/pendaftaran/*`, `/api/laporan/*` | Wajib login (Bearer token) |
+| `/api/absensi/perangkat` (GET/POST/DELETE) | Wajib login |
+| `/api/absensi/scan`, `/hari-ini`, `/siswa/:id` | Terbuka — kiosk memindai dengan `secret_key` perangkat, bukan akun |
+| `/health` | Terbuka |
+
+Password disimpan sebagai scrypt (`salt:hash`), token stateless bertanda tangan HMAC
+(`node:crypto`, tanpa dependency tambahan). Set `AUTH_SECRET` di `backend/.env`;
+kalau kosong, kunci acak dibuat tiap boot dan semua sesi gugur saat restart.
+
+Akun awal:
+
+| Username | Password | Peran |
+| --- | --- | --- |
+| `admin` | `admin123` | admin |
+| `guru` | `guru123` | guru |
+
+> Ganti password kedua akun ini sebelum dipakai di sekolah sungguhan.
+
+### Layout aplikasi
+
+Dua layout terpisah di `App.jsx`:
+
+| Layout | Rute | Tampilan |
+| --- | --- | --- |
+| **Kiosk** | `/absen` | Layar penuh, tanpa sidebar, tanpa login. Scanner HUD dengan target frame, garis pemindai, dan kartu profil realtime. |
+| **Admin** | `/dashboard`, `/master/*`, `/pendaftaran`, `/riwayat`, `/laporan`, `/perangkat` | Sidebar + header, dibungkus `ProtectedRoute` |
+
+Menambah data siswa ada di **Data Master → Siswa**; halaman *Pendaftaran Wajah* khusus
+menempelkan sampel wajah pada siswa yang sudah ada, supaya tidak ada dua form siswa
+yang harus dirawat dua kali.
+| POST | `/api/pendaftaran/siswa-wajah` | **Form terpadu**: `{ nisn, nama, kelas_id, nama_ortu, no_whatsapp, vectors }` — siswa + semua sampel wajah dalam satu transaksi |
+| POST | `/api/pendaftaran/wajah` | Tambah sampel wajah ke siswa yang sudah ada |
 | GET | `/api/pendaftaran/wajah/siswa/:siswaId` | Sampel wajah seorang siswa |
 | DELETE | `/api/pendaftaran/wajah/siswa/:siswaId` | Hapus semua sampel wajah siswa |
 | DELETE | `/api/pendaftaran/wajah/:id` | Hapus satu sampel |

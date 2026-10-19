@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { GraduationCap } from 'lucide-react';
 import GrafikKehadiran from '../components/GrafikKehadiran.jsx';
-import { laporanApi, pendaftaranApi } from '../services/api';
+import { dashboardApi, pendaftaranApi } from '../services/api';
 import { SEMUA_STATUS, STATUS_ABSENSI } from '../lib/statusAbsensi';
 
 /**
@@ -24,7 +24,7 @@ export default function Laporan() {
     setData((d) => ({ ...d, memuat: true, galat: null }));
     const [tahun, bulan] = periode.split('-').map(Number);
     try {
-      const hasil = await laporanApi.bulanan({ tahun, bulan, ...(kelasId ? { kelas_id: kelasId } : {}) });
+      const hasil = await dashboardApi.bulanan({ tahun, bulan, ...(kelasId ? { kelas_id: kelasId } : {}) });
       setData({ total: hasil.total, harian: hasil.harian, memuat: false, galat: null });
     } catch (e) {
       setData({ total: [], harian: [], memuat: false, galat: e.pesan });

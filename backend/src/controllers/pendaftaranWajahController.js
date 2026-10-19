@@ -1,8 +1,11 @@
-import { query } from '../config/database.js';
+import { pool, query } from '../config/database.js';
 import * as Siswa from '../models/Siswa.js';
 import * as Guru from '../models/Guru.js';
 import * as WajahTerdaftar from '../models/WajahTerdaftar.js';
 import { isValidVector } from '../services/faceEncoder.js';
+
+/** Sampel wajah minimum agar pencocokan cukup stabil. */
+const MIN_SAMPEL = 3;
 
 const bad = (res, message) => res.status(400).json({ message });
 const notFound = (res, message) => res.status(404).json({ message });
@@ -103,6 +106,60 @@ export async function createMapel(req, res) {
 }
 
 // ------------------------------------------------ Registrasi vektor wajah
+/**
+ * Pendaftaran terpadu: data siswa + sampel wajah disimpan dalam SATU
+ * transaksi. Kalau vektor gagal, siswa juga tidak jadi — supaya tidak ada
+ * siswa tanpa wajah atau sebaliknya.
+ *
+ * Orang tua dibuat ulang hanya bila nomor WhatsApp-nya belum terdaftar.
+ */
+export async function simpanSiswaWajah(req, res) {
+  const { nisn, nama, kelas_id, nama_ortu, no_whatsapp, vectors } = req.body;
+
+  if (!nisn || !nama || !kelas_id) return bad(res, 'nisn, nama, dan kelas_id wajib diisi');
+  if (!nama_ortu || !no_whatsapp) return bad(res, 'nama_ortu dan no_whatsapp wajib diisi');
+  if (!Array.isArray(vectors) || vectors.length === 0) return bad(res, 'vectors harus array dan tidak boleh kosong');
+  if (vectors.length < MIN_SAMPEL) return bad(res, `minimal ${MIN_SAMPEL} sampel wajah diperlukan`);
+
+  const salah = vectors.findIndex((v) => !isValidVector(v));
+  if (salah !== -1) return bad(res, `vectors[${salah}] bukan array 128 float yang valid`);
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [ortu] = await conn.execute('SELECT id FROM orang_tua WHERE no_whatsapp = ?', [no_whatsapp]);
+    let ortuId = ortu[0]?.id;
+    if (!ortuId) {
+      const [{ insertId }] = await conn.execute('INSERT INTO orang_tua (nama_ortu, no_whatsapp) VALUES (?, ?)', [
+        nama_ortu,
+        no_whatsapp,
+      ]);
+      ortuId = insertId;
+    }
+
+    const [{ insertId: siswaId }] = await conn.execute(
+      'INSERT INTO siswa (nisn, nama, kelas_id, ortu_id) VALUES (?, ?, ?, ?)',
+      [nisn, nama, kelas_id, ortuId],
+    );
+
+    // Satu INSERT untuk semua sampel: lebih cepat dan benar-benar atomik.
+    const baris = vectors.map(() => '(?, ?, ?)').join(', ');
+    const params = vectors.flatMap((v, i) => [siswaId, JSON.stringify(v), `sampel-${i + 1}`]);
+    await conn.execute(`INSERT INTO wajah_terdaftar (siswa_id, vector_data, label) VALUES ${baris}`, params);
+
+    await conn.commit();
+
+    const siswa = await Siswa.findById(siswaId);
+    res.status(201).json({ siswa, jumlah: vectors.length, ortu_id: ortuId });
+  } catch (galat) {
+    await conn.rollback();
+    throw galat;
+  } finally {
+    conn.release();
+  }
+}
+
 export async function createWajah(req, res) {
   const { siswa_id, vectors } = req.body;
   if (!siswa_id) return bad(res, 'siswa_id wajib diisi');

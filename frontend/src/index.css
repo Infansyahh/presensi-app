@@ -32,6 +32,14 @@
   --color-alpa: oklch(45% 0.02 260);
   --color-alpa-soft: oklch(95% 0.005 260);
 
+  /* HUD canvas. Nilai SENGAJA hex, bukan OKLCH: ctx.strokeStyle tidak bisa
+     membaca fungsi warna OKLCH dan akan diam-diam memakai warna sebelumnya.
+     Tetap di @theme supaya utility Tailwind (border-hud-cari) ikut terbentuk. */
+  --color-hud-aktif: #22c55e;
+  --color-hud-cari: #38bdf8;
+  --color-hud-kgagal: #f59e0b;
+  --color-hud-dasar: #64748b;
+
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
 
@@ -74,6 +82,51 @@
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+/* Animasi HUD kiosk. Semua hanya transform/opacity, jadi tidak memicu reflow. */
+@keyframes geser-garis {
+  from {
+    transform: translateY(-8%);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  to {
+    transform: translateY(760%);
+    opacity: 0;
+  }
+}
+
+@keyframes denyut-cincin {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes sapu-kamera {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.09);
+  }
+}
+
+@keyframes putar-bersama {
+  to {
+    transform: rotate(360deg);
   }
 }
 

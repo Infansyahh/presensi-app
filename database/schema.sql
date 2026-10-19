@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS `wali_kelas`;
 DROP TABLE IF EXISTS `perangkat_absen`;
 DROP TABLE IF EXISTS `siswa`;
 DROP TABLE IF EXISTS `guru`;
+DROP TABLE IF EXISTS `pengguna`;
 DROP TABLE IF EXISTS `mata_pelajaran`;
 DROP TABLE IF EXISTS `orang_tua`;
 DROP TABLE IF EXISTS `kelas`;
@@ -145,6 +146,22 @@ CREATE TABLE `perangkat_absen` (
   `created_at`     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_perangkat_secret` (`secret_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+--  pengguna  (akun admin / guru untuk masuk ke dashboard)
+--  password disimpan sebagai scrypt: "<salt hex>:<hash hex>"
+-- ---------------------------------------------------------------------
+CREATE TABLE `pengguna` (
+  `id`            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `username`      VARCHAR(50)  NOT NULL,
+  `password_hash` VARCHAR(255) NOT NULL,
+  `nama`          VARCHAR(100) NOT NULL,
+  `peran`         ENUM('admin','guru','operator') NOT NULL DEFAULT 'guru',
+  `aktif`         TINYINT(1)   NOT NULL DEFAULT 1,
+  `created_at`    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_pengguna_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ---------------------------------------------------------------------

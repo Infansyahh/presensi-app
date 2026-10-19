@@ -20,6 +20,7 @@ export default Router()
   .get('/mapel', c.listMapel)
   .post('/mapel', c.createMapel)
 
+  .post('/siswa-wajah', c.simpanSiswaWajah)
   .post('/wajah', c.createWajah)
   .get('/wajah/siswa/:siswaId', c.listWajah)
   .delete('/wajah/siswa/:siswaId', c.deleteWajahSiswa)

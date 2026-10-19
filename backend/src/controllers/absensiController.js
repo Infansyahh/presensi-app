@@ -107,3 +107,18 @@ export async function absensiHariIni(req, res) {
 export async function listPerangkat(req, res) {
   res.json(await PerangkatAbsen.findAll());
 }
+
+export async function buatPerangkat(req, res) {
+  const { nama_perangkat, lokasi, secret_key } = req.body;
+  if (!nama_perangkat || !lokasi || !secret_key) {
+    return res.status(400).json({ message: 'nama_perangkat, lokasi, dan secret_key wajib diisi' });
+  }
+  res.status(201).json(await PerangkatAbsen.create({ nama_perangkat, lokasi, secret_key }));
+}
+
+export async function hapusPerangkat(req, res) {
+  if ((await PerangkatAbsen.remove(req.params.id)) === 0) {
+    return res.status(404).json({ message: 'Perangkat tidak ditemukan' });
+  }
+  res.status(204).end();
+}
