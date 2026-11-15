@@ -14,7 +14,7 @@ mencatat kehadiran, lalu mengirim laporan ke orang tua via WhatsApp.
 | Machine Learning | `@vladmandic/face-api` — berjalan **di browser** |
 | Notifikasi | WhatsApp Gateway (Fonnte / Wablas / Baileys) |
 
-## Prinsip Arsitektur Penting
+## Prinsip Arsitektur Penting.
 
 1. **Ekstraksi ML 100% di client-side.** Backend tidak pernah menjalankan
    `@vladmandic/face-api` dan tidak menerima gambar mentah untuk diproses ML.
