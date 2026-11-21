@@ -56,7 +56,7 @@ Kamera (TitikAbsen.jsx)
 | `jadwalCalculator.js` | Status `Hadir` / `Terlambat` terhadap jam operasional | — |
 | `whatsappService.js` | Kirim notifikasi lewat Fonnte / Wablas | Tidak melempar error; mengembalikan `{terkirim, alasan}` |
 
-Ekstraksi ML tetap 100% di browser. Backend tidak memuat `face-api`; services ini
+Ekstraksi ML tetap 100% di browser. Backend tidak dimuat `face-api`; services ini
 hanya memvalidasi metadata dan membandingkan angka.
 
 ## Struktur Direktori
